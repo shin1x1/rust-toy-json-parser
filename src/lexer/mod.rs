@@ -1,0 +1,272 @@
+use std::char::decode_utf16;
+
+#[derive(Debug, PartialEq)]
+pub enum Token {
+    LeftBrace,
+    RightBrace,
+    LeftBracket,
+    RightBracket,
+    Colon,
+    Comma,
+    String(String),
+    Number(f64),
+}
+
+#[derive(Debug)]
+pub struct Lexer {
+    chars: Vec<char>,
+    position: usize,
+}
+
+
+#[derive(Debug, PartialEq)]
+pub enum LexerError {
+    InvalidCharacter(char),
+    InvalidNumber,
+    InvalidCodepoint(char),
+    InvalidUnicode(String),
+    Eot,
+}
+
+impl Lexer {
+    pub fn new(json: String) -> Self {
+        Self { chars: json.chars().collect(), position: 0 }
+    }
+
+    pub fn get_next_token(&mut self) -> Result<Token, LexerError> {
+        let ch = self.next()?;
+
+        match ch {
+            '[' => Ok(Token::LeftBracket),
+            ']' => Ok(Token::RightBracket),
+            '{' => Ok(Token::LeftBrace),
+            '}' => Ok(Token::RightBrace),
+            ':' => Ok(Token::Colon),
+            ',' => Ok(Token::Comma),
+            ' ' | '\n' | '\r' | '\t' => self.get_next_token(),
+            '-' | '0'..='9' => self.lex_number(ch),
+            '"' => self.lex_string(),
+            _ => Err(LexerError::InvalidCharacter(ch)),
+        }
+    }
+
+    fn current(&self) -> Result<char, LexerError> {
+        if self.chars.len() <= self.position {
+            Err(LexerError::Eot)
+        } else {
+            Ok(self.chars[self.position])
+        }
+    }
+
+    fn next(&mut self) -> Result<char, LexerError> {
+        let ch = self.current();
+        self.position += 1;
+        ch
+    }
+
+    fn lex_number(&mut self, ch: char) -> Result<Token, LexerError> {
+        let mut num = String::from(ch);
+
+        enum State {
+            InitZero,
+            InitMinus,
+            Digit,
+            Point,
+            PointDigit,
+            Exp,
+            ExpDigit,
+        }
+
+        let mut state: State = match ch {
+            '-' => State::InitMinus,
+            '0' => State::InitZero,
+            _ => State::Digit,
+        };
+
+        loop {
+            let ch = self.current();
+            if ch.is_err() {
+                break;
+            }
+            let ch = ch.unwrap();
+            match state {
+                State::InitMinus => {
+                    match ch {
+                        '1'..='9' => {
+                            num.push(self.next()?);
+                            state = State::Digit;
+                        }
+                        _ => break,
+                    }
+                }
+                State::InitZero => {
+                    match ch {
+                        '.' => {
+                            num.push(self.next()?);
+                            state = State::Point;
+                        }
+                        'e' | 'E' => {
+                            num.push(self.next()?);
+                            state = State::Exp;
+                        }
+                        _ => break,
+                    }
+                }
+                State::Digit => {
+                    match ch {
+                        '0'..='9' => {
+                            num.push(self.next()?);
+                            state = State::Digit;
+                        }
+                        'e' | 'E' => {
+                            num.push(self.next()?);
+                            state = State::Exp;
+                        }
+                        '.' => {
+                            num.push(self.next()?);
+                            state = State::Point;
+                        }
+                        _ => break,
+                    }
+                }
+                State::Point => {
+                    match ch {
+                        '0'..='9' => {
+                            num.push(self.next()?);
+                            state = State::PointDigit;
+                        }
+                        _ => break,
+                    }
+                }
+                State::PointDigit => {
+                    match ch {
+                        '0'..='9' => {
+                            num.push(self.next()?);
+                        }
+                        'e' | 'E' => {
+                            num.push(self.next()?);
+                            state = State::Exp;
+                        }
+                        _ => break,
+                    }
+                }
+                State::Exp => {
+                    match ch {
+                        '-' | '+' | '0'..='9' => {
+                            num.push(self.next()?);
+                            state = State::ExpDigit;
+                        }
+                        _ => break,
+                    }
+                }
+                State::ExpDigit => {
+                    match ch {
+                        '0'..='9' => {
+                            num.push(self.next()?);
+                        }
+                        _ => break,
+                    }
+                }
+            }
+        }
+
+        if let Ok(n) = num.parse::<f64>() {
+            Ok(Token::Number(n))
+        } else {
+            Err(LexerError::InvalidNumber)
+        }
+    }
+
+    fn lex_string(&mut self) -> Result<Token, LexerError> {
+        let mut string = String::from("");
+
+        loop {
+            let ch = self.next()?;
+            if ch == '"' {
+                return Ok(Token::String(string));
+            }
+
+            if ch != '\\' {
+                string.push(ch);
+                continue;
+            }
+
+            let ch = self.next()?;
+            match ch {
+                '"' => string.push('"'),
+                '\\' => string.push('\\'),
+                '/' => string.push('/'),
+                'b' => string.push('\x08'),
+                'f' => string.push('\x0C'),
+                'n' => string.push('\n'),
+                'r' => string.push('\r'),
+                't' => string.push('\t'),
+                'u' => {
+                    let mut codepoint: [u16; 4] = [0, 0, 0, 0];
+                    let mut i = 0;
+                    while i < 4 {
+                        let ch = self.next()?;
+
+                        if !ch.is_ascii_hexdigit() {
+                            return Err(LexerError::InvalidCodepoint(ch));
+                        }
+                        codepoint[i] = ch as u16 - '0' as u16;
+                        i += 1;
+                    }
+
+                    let code: u16 = codepoint[0] << 12 | codepoint[1] << 8 | codepoint[2] << 4 | codepoint[3];
+
+                    string.push(match decode_utf16(vec![code]).last().unwrap() {
+                        Ok(c) => Ok(c as char),
+                        Err(e) => Err(LexerError::InvalidUnicode(e.to_string())),
+                    }?);
+                }
+                _ => string.push(ch),
+            }
+        }
+    }
+}
+
+#[test]
+fn test_get_next_token() {
+    let mut lexer = Lexer::new(String::from("[]\n{\r}123 1.0e+4\t:\"あ12\" ,"));
+    assert_eq!(lexer.get_next_token(), Ok(Token::LeftBracket));
+    assert_eq!(lexer.get_next_token(), Ok(Token::RightBracket));
+    assert_eq!(lexer.get_next_token(), Ok(Token::LeftBrace));
+    assert_eq!(lexer.get_next_token(), Ok(Token::RightBrace));
+    assert_eq!(lexer.get_next_token(), Ok(Token::Number(123.0)));
+    assert_eq!(lexer.get_next_token(), Ok(Token::Number(10000.0)));
+    assert_eq!(lexer.get_next_token(), Ok(Token::Colon));
+    assert_eq!(lexer.get_next_token(), Ok(Token::String(String::from("あ12"))));
+    assert_eq!(lexer.get_next_token(), Ok(Token::Comma));
+    assert_eq!(lexer.get_next_token(), Err(LexerError::Eot));
+}
+
+#[test]
+fn test_lex_number() {
+    let mut lexer = Lexer::new(String::from("123.e"));
+    assert_eq!(lexer.get_next_token(), Ok(Token::Number(123.0)));
+    assert_eq!(lexer.get_next_token(), Err(LexerError::InvalidCharacter('e')));
+
+    let mut lexer = Lexer::new(String::from("01"));
+    assert_eq!(lexer.get_next_token(), Ok(Token::Number(0.0)));
+    assert_eq!(lexer.get_next_token(), Ok(Token::Number(1.0)));
+    assert_eq!(lexer.get_next_token(), Err(LexerError::Eot));
+
+    let mut lexer = Lexer::new(String::from("1e2"));
+    assert_eq!(lexer.get_next_token(), Ok(Token::Number(100.0)));
+    assert_eq!(lexer.get_next_token(), Err(LexerError::Eot));
+}
+
+#[test]
+fn test_lex_string() {
+    let mut lexer = Lexer::new(String::from(r#""123\u3042\r\n \t\"""#));
+    assert_eq!(lexer.get_next_token(), Ok(Token::String(String::from("123あ\r\n \t\""))));
+    assert_eq!(lexer.get_next_token(), Err(LexerError::Eot));
+}
+
+#[test]
+fn test_lex_string_invalid_codepoint() {
+    let mut lexer = Lexer::new(String::from(r#""\u123z""#));
+    assert_eq!(lexer.get_next_token(), Err(LexerError::InvalidCodepoint('z')));
+}
