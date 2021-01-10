@@ -10,6 +10,7 @@ pub enum Token {
     Comma,
     String(String),
     Number(f64),
+    Keyword(String),
 }
 
 #[derive(Debug)]
@@ -25,6 +26,7 @@ pub enum LexerError {
     InvalidNumber,
     InvalidCodepoint(char),
     InvalidUnicode(String),
+    InvalidKeyword(char),
     Eot,
 }
 
@@ -46,6 +48,9 @@ impl Lexer {
             ' ' | '\n' | '\r' | '\t' => self.get_next_token(),
             '-' | '0'..='9' => self.lex_number(ch),
             '"' => self.lex_string(),
+            't' => self.lex_keyword(String::from("true")),
+            'f' => self.lex_keyword(String::from("false")),
+            'n' => self.lex_keyword(String::from("null")),
             _ => Err(LexerError::InvalidCharacter(ch)),
         }
     }
@@ -225,11 +230,22 @@ impl Lexer {
             }
         }
     }
+
+    fn lex_keyword(&mut self, keyword: String) -> Result<Token, LexerError> {
+        for k in keyword.chars().skip(1) {
+            let ch = self.next()?;
+            if ch != k {
+                return Err(LexerError::InvalidKeyword(ch));
+            }
+        }
+
+        Ok(Token::Keyword(keyword))
+    }
 }
 
 #[test]
 fn test_get_next_token() {
-    let mut lexer = Lexer::new(String::from("[]\n{\r}123 1.0e+4\t:\"あ12\" ,"));
+    let mut lexer = Lexer::new(String::from("[]\n{\r}123 1.0e+4\t:\"あ12\"true ,"));
     assert_eq!(lexer.get_next_token(), Ok(Token::LeftBracket));
     assert_eq!(lexer.get_next_token(), Ok(Token::RightBracket));
     assert_eq!(lexer.get_next_token(), Ok(Token::LeftBrace));
@@ -238,6 +254,7 @@ fn test_get_next_token() {
     assert_eq!(lexer.get_next_token(), Ok(Token::Number(10000.0)));
     assert_eq!(lexer.get_next_token(), Ok(Token::Colon));
     assert_eq!(lexer.get_next_token(), Ok(Token::String(String::from("あ12"))));
+    assert_eq!(lexer.get_next_token(), Ok(Token::Keyword(String::from("true"))));
     assert_eq!(lexer.get_next_token(), Ok(Token::Comma));
     assert_eq!(lexer.get_next_token(), Err(LexerError::Eot));
 }
@@ -269,4 +286,12 @@ fn test_lex_string() {
 fn test_lex_string_invalid_codepoint() {
     let mut lexer = Lexer::new(String::from(r#""\u123z""#));
     assert_eq!(lexer.get_next_token(), Err(LexerError::InvalidCodepoint('z')));
+}
+
+#[test]
+fn test_lex_keyword() {
+    let mut lexer = Lexer::new(String::from("true false null"));
+    assert_eq!(lexer.get_next_token(), Ok(Token::Keyword(String::from("true"))));
+    assert_eq!(lexer.get_next_token(), Ok(Token::Keyword(String::from("false"))));
+    assert_eq!(lexer.get_next_token(), Ok(Token::Keyword(String::from("null"))));
 }
