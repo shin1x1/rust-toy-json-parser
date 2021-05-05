@@ -55,7 +55,7 @@ impl Lexer {
         }
     }
 
-    fn is_eot(&self) -> bool {
+    pub fn is_eot(&self) -> bool {
         self.chars.len() <= self.position
     }
 
