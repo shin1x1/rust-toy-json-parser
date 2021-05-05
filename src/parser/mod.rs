@@ -181,7 +181,7 @@ fn test_parse_array() {
                         .into_boxed_slice()
                 )
             ]
-                .into_boxed_slice()
+            .into_boxed_slice()
         ))
     );
 }
