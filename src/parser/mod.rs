@@ -57,7 +57,7 @@ impl Parser {
                 "null" => Ok(JsonValue::Null),
                 _ => Err(Error::Parser(ParseError::InvalidKeyword)),
             },
-            _ => Err(Error::Parser(ParseError::Unknown))
+            _ => Err(Error::Parser(ParseError::Unknown)),
         }
     }
 
@@ -151,7 +151,7 @@ impl Parser {
                         state = State::Key;
                     }
                     _ => return Err(Error::Parser(ParseError::InvalidToken)),
-                }
+                },
             }
         }
     }
@@ -172,29 +172,37 @@ fn test_parse_array() {
     let mut parser = Parser::new(lexer);
     let json = parser.parse();
 
-    assert_eq!(json, Ok(JsonValue::Array(vec![
-        JsonValue::Number(1.0),
-        JsonValue::String(String::from("abc")),
-        JsonValue::Array(vec![
-            JsonValue::True,
-            JsonValue::Array(vec![].into_boxed_slice())
-        ].into_boxed_slice())
-    ].into_boxed_slice())));
+    assert_eq!(
+        json,
+        Ok(JsonValue::Array(
+            vec![
+                JsonValue::Number(1.0),
+                JsonValue::String(String::from("abc")),
+                JsonValue::Array(
+                    vec![JsonValue::True, JsonValue::Array(vec![].into_boxed_slice())]
+                        .into_boxed_slice()
+                )
+            ]
+            .into_boxed_slice()
+        ))
+    );
 }
 
 #[test]
 fn test_parse_object() {
-    let lexer = Lexer::new(String::from(r#"{"n":1, "s": "abc", "a":[1,2], "o":{"k1":"hi"}}"#));
+    let lexer = Lexer::new(String::from(
+        r#"{"n":1, "s": "abc", "a":[1,2], "o":{"k1":"hi"}}"#,
+    ));
     let mut parser = Parser::new(lexer);
     let json = parser.parse();
 
     let mut map: HashMap<String, JsonValue> = HashMap::new();
     map.insert(String::from("n"), JsonValue::Number(1.0));
     map.insert(String::from("s"), JsonValue::String(String::from("abc")));
-    map.insert(String::from("a"), JsonValue::Array(vec![
-        JsonValue::Number(1.0),
-        JsonValue::Number(2.0),
-    ].into_boxed_slice()));
+    map.insert(
+        String::from("a"),
+        JsonValue::Array(vec![JsonValue::Number(1.0), JsonValue::Number(2.0)].into_boxed_slice()),
+    );
 
     let mut map1: HashMap<String, JsonValue> = HashMap::new();
     map1.insert(String::from("k1"), JsonValue::String(String::from("hi")));
