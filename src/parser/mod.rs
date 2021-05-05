@@ -1,5 +1,6 @@
 use crate::lexer::*;
 use std::collections::HashMap;
+use std::result;
 
 #[derive(Debug, PartialEq)]
 pub enum JsonValue {
@@ -29,12 +30,14 @@ pub struct Parser {
     lexer: Lexer,
 }
 
+type Result = result::Result<JsonValue, Error>;
+
 impl Parser {
     pub fn new(lexer: Lexer) -> Self {
         Self { lexer }
     }
 
-    pub fn parse(&mut self) -> Result<JsonValue, Error> {
+    pub fn parse(&mut self) -> Result {
         if self.lexer.is_eot() {
             return Ok(JsonValue::Null);
         }
@@ -45,7 +48,7 @@ impl Parser {
         }
     }
 
-    fn parse_value(&mut self, token: Token) -> Result<JsonValue, Error> {
+    fn parse_value(&mut self, token: Token) -> Result {
         match token {
             Token::String(s) => Ok(JsonValue::String(s)),
             Token::Number(f) => Ok(JsonValue::Number(f)),
@@ -61,7 +64,7 @@ impl Parser {
         }
     }
 
-    fn parse_array(&mut self) -> Result<JsonValue, Error> {
+    fn parse_array(&mut self) -> Result {
         enum State {
             Default,
             Value,
@@ -98,7 +101,7 @@ impl Parser {
         }
     }
 
-    fn parse_object(&mut self) -> Result<JsonValue, Error> {
+    fn parse_object(&mut self) -> Result {
         enum State {
             Default,
             Value,
