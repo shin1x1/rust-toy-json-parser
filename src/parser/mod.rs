@@ -70,13 +70,12 @@ impl Parser {
 
         let mut state = State::Default;
         let mut array: Vec<JsonValue> = vec![];
-        loop {
-            let t = self.lexer.get_next_token();
-            if t.is_err() {
-                return Err(Error::Lexer(t.unwrap_err()));
-            }
 
-            let token = t.unwrap();
+        loop {
+            let token = match self.lexer.get_next_token() {
+                Ok(t) => t,
+                Err(e) => return Err(Error::Lexer(e)),
+            };
 
             match state {
                 State::Default => match token {
@@ -111,13 +110,12 @@ impl Parser {
         let mut state = State::Default;
         let mut key = String::new();
         let mut map: HashMap<String, JsonValue> = HashMap::new();
-        loop {
-            let t = self.lexer.get_next_token();
-            if t.is_err() {
-                return Err(Error::Lexer(t.unwrap_err()));
-            }
 
-            let token = t.unwrap();
+        loop {
+            let token = match self.lexer.get_next_token() {
+                Ok(t) => t,
+                Err(e) => return Err(Error::Lexer(e)),
+            };
 
             match state {
                 State::Default => match token {
@@ -183,7 +181,7 @@ fn test_parse_array() {
                         .into_boxed_slice()
                 )
             ]
-            .into_boxed_slice()
+                .into_boxed_slice()
         ))
     );
 }
