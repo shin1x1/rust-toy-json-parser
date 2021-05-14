@@ -1,7 +1,7 @@
 use crate::lexer::*;
 use std::collections::HashMap;
-use std::result;
 use std::ops::Deref;
+use std::result;
 
 #[derive(Debug, PartialEq)]
 pub enum JsonValue {
@@ -185,29 +185,33 @@ fn test_parse_array() {
                         .into_boxed_slice()
                 )
             ]
-                .into_boxed_slice()
+            .into_boxed_slice()
         ))
     );
 }
 
 #[test]
 fn test_parse_object() {
-    let lexer = Lexer::new(
-        r#"{"n":1, "s": "abc", "a":[1,2], "o":{"k1":"hi"}}"#,
-    );
+    let lexer = Lexer::new(r#"{"n":1, "s": "abc", "a":[1,2], "o":{"k1":"hi"}}"#);
     let mut parser = Parser::new(lexer);
     let json = parser.parse();
 
     let mut map: HashMap<Box<str>, JsonValue> = HashMap::new();
     map.insert("n".to_owned().into_boxed_str(), JsonValue::Number(1.0));
-    map.insert("s".to_owned().into_boxed_str(), JsonValue::String("abc".to_owned().into_boxed_str()));
+    map.insert(
+        "s".to_owned().into_boxed_str(),
+        JsonValue::String("abc".to_owned().into_boxed_str()),
+    );
     map.insert(
         "a".to_owned().into_boxed_str(),
         JsonValue::Array(vec![JsonValue::Number(1.0), JsonValue::Number(2.0)].into_boxed_slice()),
     );
 
     let mut map1: HashMap<Box<str>, JsonValue> = HashMap::new();
-    map1.insert("k1".to_owned().into_boxed_str(), JsonValue::String("hi".to_owned().into_boxed_str()));
+    map1.insert(
+        "k1".to_owned().into_boxed_str(),
+        JsonValue::String("hi".to_owned().into_boxed_str()),
+    );
     map.insert("o".to_owned().into_boxed_str(), JsonValue::Object(map1));
 
     assert_eq!(json, Ok(JsonValue::Object(map)));
