@@ -14,7 +14,7 @@ fn main() -> () {
         Err(e) => panic!("{:?}", e),
     }
 
-    let mut parser = Parser::new(Lexer::new(buffer));
+    let mut parser = Parser::new(Lexer::new(&buffer));
     match parser.parse() {
         Ok(json) => println!("{:?}", json),
         Err(e) => panic!("{:?}", e),

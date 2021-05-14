@@ -8,9 +8,9 @@ pub enum Token {
     RightBracket,
     Colon,
     Comma,
-    String(String),
+    String(Box<str>),
     Number(f64),
-    Keyword(String),
+    Keyword(Box<str>),
 }
 
 #[derive(Debug)]
@@ -24,13 +24,13 @@ pub enum LexerError {
     InvalidCharacter(char),
     InvalidNumber,
     InvalidCodepoint(char),
-    InvalidUnicode(String),
+    InvalidUnicode(Box<str>),
     InvalidKeyword(char),
     Eot,
 }
 
 impl Lexer {
-    pub fn new(json: String) -> Self {
+    pub fn new(json: &str) -> Self {
         Self {
             chars: json.chars().collect(),
             position: 0,
@@ -50,9 +50,9 @@ impl Lexer {
             ' ' | '\n' | '\r' | '\t' => self.get_next_token(),
             '-' | '0'..='9' => self.lex_number(ch),
             '"' => self.lex_string(),
-            't' => self.lex_keyword(String::from("true")),
-            'f' => self.lex_keyword(String::from("false")),
-            'n' => self.lex_keyword(String::from("null")),
+            't' => self.lex_keyword("true"),
+            'f' => self.lex_keyword("false"),
+            'n' => self.lex_keyword("null"),
             _ => Err(LexerError::InvalidCharacter(ch)),
         }
     }
@@ -180,7 +180,7 @@ impl Lexer {
         loop {
             let ch = self.next()?;
             if ch == '"' {
-                return Ok(Token::String(string));
+                return Ok(Token::String(string.into_boxed_str()));
             }
 
             if ch != '\\' {
@@ -216,7 +216,7 @@ impl Lexer {
 
                     string.push(match decode_utf16(vec![code]).last().unwrap() {
                         Ok(c) => Ok(c as char),
-                        Err(e) => Err(LexerError::InvalidUnicode(e.to_string())),
+                        Err(e) => Err(LexerError::InvalidUnicode(e.to_string().into_boxed_str())),
                     }?);
                 }
                 _ => string.push(ch),
@@ -224,7 +224,7 @@ impl Lexer {
         }
     }
 
-    fn lex_keyword(&mut self, keyword: String) -> Result<Token, LexerError> {
+    fn lex_keyword(&mut self, keyword: &str) -> Result<Token, LexerError> {
         for k in keyword.chars().skip(1) {
             let ch = self.next()?;
             if ch != k {
@@ -232,13 +232,13 @@ impl Lexer {
             }
         }
 
-        Ok(Token::Keyword(keyword))
+        Ok(Token::Keyword(keyword.to_owned().into_boxed_str()))
     }
 }
 
 #[test]
 fn test_get_next_token() {
-    let mut lexer = Lexer::new(String::from("[]\n{\r}123 1.0e+4\t:\"あ12\"true ,"));
+    let mut lexer = Lexer::new("[]\n{\r}123 1.0e+4\t:\"あ12\"true ,");
     assert_eq!(lexer.is_eot(), false);
     assert_eq!(lexer.get_next_token(), Ok(Token::LeftBracket));
     assert_eq!(lexer.get_next_token(), Ok(Token::RightBracket));
@@ -249,11 +249,11 @@ fn test_get_next_token() {
     assert_eq!(lexer.get_next_token(), Ok(Token::Colon));
     assert_eq!(
         lexer.get_next_token(),
-        Ok(Token::String(String::from("あ12")))
+        Ok(Token::String("あ12".to_owned().into_boxed_str()))
     );
     assert_eq!(
         lexer.get_next_token(),
-        Ok(Token::Keyword(String::from("true")))
+        Ok(Token::Keyword("true".to_owned().into_boxed_str()))
     );
     assert_eq!(lexer.get_next_token(), Ok(Token::Comma));
     assert_eq!(lexer.is_eot(), true);
@@ -261,36 +261,36 @@ fn test_get_next_token() {
 
 #[test]
 fn test_lex_number() {
-    let mut lexer = Lexer::new(String::from("123.e"));
+    let mut lexer = Lexer::new("123.e");
     assert_eq!(lexer.get_next_token(), Ok(Token::Number(123.0)));
     assert_eq!(
         lexer.get_next_token(),
         Err(LexerError::InvalidCharacter('e'))
     );
 
-    let mut lexer = Lexer::new(String::from("01"));
+    let mut lexer = Lexer::new("01");
     assert_eq!(lexer.get_next_token(), Ok(Token::Number(0.0)));
     assert_eq!(lexer.get_next_token(), Ok(Token::Number(1.0)));
     assert_eq!(lexer.is_eot(), true);
 
-    let mut lexer = Lexer::new(String::from("1e2"));
+    let mut lexer = Lexer::new("1e2");
     assert_eq!(lexer.get_next_token(), Ok(Token::Number(100.0)));
     assert_eq!(lexer.is_eot(), true);
 }
 
 #[test]
 fn test_lex_string() {
-    let mut lexer = Lexer::new(String::from(r#""123\u3042\r\n \t\"""#));
+    let mut lexer = Lexer::new(r#""123\u3042\r\n \t\"""#);
     assert_eq!(
         lexer.get_next_token(),
-        Ok(Token::String(String::from("123あ\r\n \t\"")))
+        Ok(Token::String("123あ\r\n \t\"".to_owned().into_boxed_str()))
     );
     assert_eq!(lexer.is_eot(), true);
 }
 
 #[test]
 fn test_lex_string_invalid_codepoint() {
-    let mut lexer = Lexer::new(String::from(r#""\u123z""#));
+    let mut lexer = Lexer::new(r#""\u123z""#);
     assert_eq!(
         lexer.get_next_token(),
         Err(LexerError::InvalidCodepoint('z'))
@@ -299,18 +299,18 @@ fn test_lex_string_invalid_codepoint() {
 
 #[test]
 fn test_lex_keyword() {
-    let mut lexer = Lexer::new(String::from("true false null"));
+    let mut lexer = Lexer::new("true false null");
     assert_eq!(
         lexer.get_next_token(),
-        Ok(Token::Keyword(String::from("true")))
+        Ok(Token::Keyword("true".to_owned().into_boxed_str()))
     );
     assert_eq!(
         lexer.get_next_token(),
-        Ok(Token::Keyword(String::from("false")))
+        Ok(Token::Keyword("false".to_owned().into_boxed_str()))
     );
     assert_eq!(
         lexer.get_next_token(),
-        Ok(Token::Keyword(String::from("null")))
+        Ok(Token::Keyword("null".to_owned().into_boxed_str()))
     );
     assert_eq!(lexer.is_eot(), true);
 }

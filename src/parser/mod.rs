@@ -1,12 +1,13 @@
 use crate::lexer::*;
 use std::collections::HashMap;
 use std::result;
+use std::ops::Deref;
 
 #[derive(Debug, PartialEq)]
 pub enum JsonValue {
     Array(Box<[JsonValue]>),
-    Object(HashMap<String, JsonValue>),
-    String(String),
+    Object(HashMap<Box<str>, JsonValue>),
+    String(Box<str>),
     Number(f64),
     True,
     False,
@@ -54,7 +55,7 @@ impl Parser {
             Token::Number(f) => Ok(JsonValue::Number(f)),
             Token::LeftBracket => self.parse_array(),
             Token::LeftBrace => self.parse_object(),
-            Token::Keyword(k) => match k.as_str() {
+            Token::Keyword(k) => match k.deref() {
                 "true" => Ok(JsonValue::True),
                 "false" => Ok(JsonValue::False),
                 "null" => Ok(JsonValue::Null),
@@ -111,8 +112,8 @@ impl Parser {
         }
 
         let mut state = State::Default;
-        let mut key = String::new();
-        let mut map: HashMap<String, JsonValue> = HashMap::new();
+        let mut key: Box<str> = Box::from("");
+        let mut map: HashMap<Box<str>, JsonValue> = HashMap::new();
 
         loop {
             let token = match self.lexer.get_next_token() {
@@ -138,7 +139,7 @@ impl Parser {
                         return Err(Error::Parser(ParseError::InvalidToken));
                     }
 
-                    map.insert(key.clone(), self.parse_value(token)?);
+                    map.insert(key.to_owned(), self.parse_value(token)?);
                     state = State::Value;
                 }
                 State::Value => match token {
@@ -160,7 +161,7 @@ impl Parser {
 
 #[test]
 fn test_parse() {
-    let lexer = Lexer::new(String::from("null"));
+    let lexer = Lexer::new("null");
     let mut parser = Parser::new(lexer);
     let json = parser.parse();
 
@@ -169,7 +170,7 @@ fn test_parse() {
 
 #[test]
 fn test_parse_array() {
-    let lexer = Lexer::new(String::from("[1, \"abc\",[true,[]]]"));
+    let lexer = Lexer::new("[1, \"abc\",[true,[]]]");
     let mut parser = Parser::new(lexer);
     let json = parser.parse();
 
@@ -178,36 +179,36 @@ fn test_parse_array() {
         Ok(JsonValue::Array(
             vec![
                 JsonValue::Number(1.0),
-                JsonValue::String(String::from("abc")),
+                JsonValue::String("abc".to_owned().into_boxed_str()),
                 JsonValue::Array(
                     vec![JsonValue::True, JsonValue::Array(vec![].into_boxed_slice())]
                         .into_boxed_slice()
                 )
             ]
-            .into_boxed_slice()
+                .into_boxed_slice()
         ))
     );
 }
 
 #[test]
 fn test_parse_object() {
-    let lexer = Lexer::new(String::from(
+    let lexer = Lexer::new(
         r#"{"n":1, "s": "abc", "a":[1,2], "o":{"k1":"hi"}}"#,
-    ));
+    );
     let mut parser = Parser::new(lexer);
     let json = parser.parse();
 
-    let mut map: HashMap<String, JsonValue> = HashMap::new();
-    map.insert(String::from("n"), JsonValue::Number(1.0));
-    map.insert(String::from("s"), JsonValue::String(String::from("abc")));
+    let mut map: HashMap<Box<str>, JsonValue> = HashMap::new();
+    map.insert("n".to_owned().into_boxed_str(), JsonValue::Number(1.0));
+    map.insert("s".to_owned().into_boxed_str(), JsonValue::String("abc".to_owned().into_boxed_str()));
     map.insert(
-        String::from("a"),
+        "a".to_owned().into_boxed_str(),
         JsonValue::Array(vec![JsonValue::Number(1.0), JsonValue::Number(2.0)].into_boxed_slice()),
     );
 
-    let mut map1: HashMap<String, JsonValue> = HashMap::new();
-    map1.insert(String::from("k1"), JsonValue::String(String::from("hi")));
-    map.insert(String::from("o"), JsonValue::Object(map1));
+    let mut map1: HashMap<Box<str>, JsonValue> = HashMap::new();
+    map1.insert("k1".to_owned().into_boxed_str(), JsonValue::String("hi".to_owned().into_boxed_str()));
+    map.insert("o".to_owned().into_boxed_str(), JsonValue::Object(map1));
 
     assert_eq!(json, Ok(JsonValue::Object(map)));
 }
