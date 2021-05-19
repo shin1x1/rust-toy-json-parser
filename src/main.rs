@@ -5,7 +5,7 @@ use std::io::Read;
 mod lexer;
 mod parser;
 
-fn main() -> () {
+fn main() {
     let mut buffer = String::new();
     let mut stdin = std::io::stdin();
 
