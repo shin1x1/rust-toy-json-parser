@@ -37,7 +37,7 @@ impl Lexer {
         }
     }
 
-    pub fn get_next_token(&mut self) -> Result<Token, LexerError> {
+    pub fn read_next_token(&mut self) -> Result<Token, LexerError> {
         let ch = self.next()?;
 
         match ch {
@@ -47,7 +47,7 @@ impl Lexer {
             '}' => Ok(Token::RightBrace),
             ':' => Ok(Token::Colon),
             ',' => Ok(Token::Comma),
-            ' ' | '\n' | '\r' | '\t' => self.get_next_token(),
+            ' ' | '\n' | '\r' | '\t' => self.read_next_token(),
             '-' | '0'..='9' => self.lex_number(ch),
             '"' => self.lex_string(),
             't' => self.lex_keyword("true"),
@@ -240,41 +240,41 @@ impl Lexer {
 fn test_get_next_token() {
     let mut lexer = Lexer::new("[]\n{\r}123 1.0e+4\t:\"あ12\"true ,");
     assert_eq!(lexer.is_eot(), false);
-    assert_eq!(lexer.get_next_token(), Ok(Token::LeftBracket));
-    assert_eq!(lexer.get_next_token(), Ok(Token::RightBracket));
-    assert_eq!(lexer.get_next_token(), Ok(Token::LeftBrace));
-    assert_eq!(lexer.get_next_token(), Ok(Token::RightBrace));
-    assert_eq!(lexer.get_next_token(), Ok(Token::Number(123.0)));
-    assert_eq!(lexer.get_next_token(), Ok(Token::Number(10000.0)));
-    assert_eq!(lexer.get_next_token(), Ok(Token::Colon));
+    assert_eq!(lexer.read_next_token(), Ok(Token::LeftBracket));
+    assert_eq!(lexer.read_next_token(), Ok(Token::RightBracket));
+    assert_eq!(lexer.read_next_token(), Ok(Token::LeftBrace));
+    assert_eq!(lexer.read_next_token(), Ok(Token::RightBrace));
+    assert_eq!(lexer.read_next_token(), Ok(Token::Number(123.0)));
+    assert_eq!(lexer.read_next_token(), Ok(Token::Number(10000.0)));
+    assert_eq!(lexer.read_next_token(), Ok(Token::Colon));
     assert_eq!(
-        lexer.get_next_token(),
+        lexer.read_next_token(),
         Ok(Token::String("あ12".to_owned().into_boxed_str()))
     );
     assert_eq!(
-        lexer.get_next_token(),
+        lexer.read_next_token(),
         Ok(Token::Keyword("true".to_owned().into_boxed_str()))
     );
-    assert_eq!(lexer.get_next_token(), Ok(Token::Comma));
+    assert_eq!(lexer.read_next_token(), Ok(Token::Comma));
     assert_eq!(lexer.is_eot(), true);
 }
 
 #[test]
 fn test_lex_number() {
     let mut lexer = Lexer::new("123.e");
-    assert_eq!(lexer.get_next_token(), Ok(Token::Number(123.0)));
+    assert_eq!(lexer.read_next_token(), Ok(Token::Number(123.0)));
     assert_eq!(
-        lexer.get_next_token(),
+        lexer.read_next_token(),
         Err(LexerError::InvalidCharacter('e'))
     );
 
     let mut lexer = Lexer::new("01");
-    assert_eq!(lexer.get_next_token(), Ok(Token::Number(0.0)));
-    assert_eq!(lexer.get_next_token(), Ok(Token::Number(1.0)));
+    assert_eq!(lexer.read_next_token(), Ok(Token::Number(0.0)));
+    assert_eq!(lexer.read_next_token(), Ok(Token::Number(1.0)));
     assert_eq!(lexer.is_eot(), true);
 
     let mut lexer = Lexer::new("1e2");
-    assert_eq!(lexer.get_next_token(), Ok(Token::Number(100.0)));
+    assert_eq!(lexer.read_next_token(), Ok(Token::Number(100.0)));
     assert_eq!(lexer.is_eot(), true);
 }
 
@@ -282,7 +282,7 @@ fn test_lex_number() {
 fn test_lex_string() {
     let mut lexer = Lexer::new(r#""123\u3042\r\n \t\"""#);
     assert_eq!(
-        lexer.get_next_token(),
+        lexer.read_next_token(),
         Ok(Token::String("123あ\r\n \t\"".to_owned().into_boxed_str()))
     );
     assert_eq!(lexer.is_eot(), true);
@@ -292,7 +292,7 @@ fn test_lex_string() {
 fn test_lex_string_invalid_codepoint() {
     let mut lexer = Lexer::new(r#""\u123z""#);
     assert_eq!(
-        lexer.get_next_token(),
+        lexer.read_next_token(),
         Err(LexerError::InvalidCodepoint('z'))
     );
 }
@@ -301,15 +301,15 @@ fn test_lex_string_invalid_codepoint() {
 fn test_lex_keyword() {
     let mut lexer = Lexer::new("true false null");
     assert_eq!(
-        lexer.get_next_token(),
+        lexer.read_next_token(),
         Ok(Token::Keyword("true".to_owned().into_boxed_str()))
     );
     assert_eq!(
-        lexer.get_next_token(),
+        lexer.read_next_token(),
         Ok(Token::Keyword("false".to_owned().into_boxed_str()))
     );
     assert_eq!(
-        lexer.get_next_token(),
+        lexer.read_next_token(),
         Ok(Token::Keyword("null".to_owned().into_boxed_str()))
     );
     assert_eq!(lexer.is_eot(), true);

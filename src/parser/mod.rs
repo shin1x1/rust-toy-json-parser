@@ -43,7 +43,7 @@ impl Parser {
             return Ok(JsonValue::Null);
         }
 
-        match self.lexer.get_next_token() {
+        match self.lexer.read_next_token() {
             Ok(t) => self.parse_value(t),
             Err(e) => Err(Error::Lexer(e)),
         }
@@ -76,7 +76,7 @@ impl Parser {
         let mut array: Vec<JsonValue> = vec![];
 
         loop {
-            let token = match self.lexer.get_next_token() {
+            let token = match self.lexer.read_next_token() {
                 Ok(t) => t,
                 Err(e) => return Err(Error::Lexer(e)),
             };
@@ -116,7 +116,7 @@ impl Parser {
         let mut map: HashMap<Box<str>, JsonValue> = HashMap::new();
 
         loop {
-            let token = match self.lexer.get_next_token() {
+            let token = match self.lexer.read_next_token() {
                 Ok(t) => t,
                 Err(e) => return Err(Error::Lexer(e)),
             };
